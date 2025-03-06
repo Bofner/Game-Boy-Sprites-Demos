@@ -1,0 +1,19 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "emulicious-debugger",
+            "windows": {
+                "command": "..\\..\\WLA-DX_Binaries\\buildSMS.bat"
+            },
+            "request": "launch",
+            "name": "Build and Launch in Emulicious",
+            "program": "${workspaceFolder}/output.sms",
+            "port": 58870,
+            "stopOnEntry": false
+        }
+    ]
+}
