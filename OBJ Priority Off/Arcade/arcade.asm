@@ -1,0 +1,6 @@
+.BANK 2 SLOT 1
+.ORG $0000
+.SECTION "Arcade"
+
+
+.ENDS

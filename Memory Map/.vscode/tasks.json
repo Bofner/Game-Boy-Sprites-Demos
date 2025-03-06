@@ -1,0 +1,32 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+		{
+            "label": "Launch Emulicious",
+            "command": "..\\..\\Emulicious-with-Java\\Emulicious.jar",
+			"args": [ "output.gbc" ],
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "dependsOn":["GBC Batch File Run"]
+        },
+		{
+			"label": "GBC Batch File Run",
+			"type": "shell",
+			"command": "..\\..\\..\\assembler\\buildGBC.bat",
+			"options": {
+				"cwd": "${fileDirname}\\..\\Main"
+			},
+			"problemMatcher": [],
+			"group": {
+				"kind": "build",
+			}
+		}
+	]
+
+	
+}

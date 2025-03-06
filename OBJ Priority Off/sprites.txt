@@ -1,0 +1,200 @@
+We will call any number of objects connected to each other a "sprite."
+Therefore a sprite will be made up of objects.
+
+Our sprite will need to have attributes that can be accessed by subroutines and other
+sprites and BG environments. 
+
+Here is what we did for Space Tonbow:
+;==============================================================
+; Enemy Structure
+;==============================================================
+.STRUCT enemyStructure
+    hitBox instanceof hitBoxStructure
+/*
+    y1                    db      ;Top left corner of Hitbox yPos
+    x1                    db      ;Top left corner of Hitbox xPos
+    y2                    db      ;Bottom right corner of Hitbox yPos
+    x2                    db      ;Bottom right corner of Hitbox xPos
+    width                 db      ;How far across Hitbox stretches in pixels, if 0, then invincible
+    height                db      ;How far down the Hitbox stretches in pixels
+*/
+    state                       db          ;Is it alive? Dead? Dying? Spawning? etc
+                                            ;$01 = Alive, $FF = Dying, $00 = Dead
+    updateAIPointer             dw          ;Points to the subroutine to update the AI
+    instanceof spriteStructure
+/*
+    sprNum          db      ;The draw-number of the sprite 
+    spriteSize      db      ;$08 or $10 for 8x8 or 8x16
+    width           db      ;The width of the OBJ     
+    height          db      ;The height of the OBJ
+    yPos            db      ;The Y coord of the OBJ's top left corner
+    xPos            db      ;The X coord of the OBJ's top left corner
+    cc              db      ;The first character code for the OBJ 
+    xCenter         db      ;The X coord of the OBJ's center
+    yCenter         db      ;The Y coord of the OBJ's center
+*/
+    yFracPos                    dw          ;Fractional position $WHOLELO, FRAC $UNUSED, WHOLEHI
+    xFracPos                    dw          ;
+    yVel                        db          ;Velocity %SYYYFFFF 
+    xVel                        db          ;Velocity %SXXXFFFF 
+    animationTimer              db
+    spawnTimer                  db
+
+;Any special enemy traits can go down here
+    
+.ENDST
+
+So what do we need from this? 
+
+I think the most important thing, the thing that should go first is the classPointer. 
+This will function similarly to how to updateAIPointer worked, but instead of pointing to the 
+updateAI subroutine, it will instead point to the entity's class. 
+
+An entity will be a specific instance of sprite. The sprite will just be the collection of objects in OAM. 
+The entity will have special properties
+
+This nomenclature is getting confusing. But I think this makes sense. The objects will be the 8x8/8x16 pieces of 
+a sprite. The sprite will be made up of the objects, and the entity will be specific instances of the sprites with special attributes attached to them. One of these attributes will be the classPointer. Therefore all entities will be part of a Class. 
+
+We can have the Tonbow Class, the Sunfish Class, the Mola Pilot Class, the Civilian Class etc. 
+
+OAM uses the following:
+
+; OAM attributes
+; each entry in OAM RAM is 4 bytes (sizeof_OAM_ATTRS)
+.STRUCT "structOAM"
+    yPos                db  ; y pos
+    xPos                db  ; x pos
+    tileID              db  ; tile id
+    flags               db  ; flags (see below)
+.ENDST
+
+.DEF OAM_COUNT           40  ; number of OAM entries in OAM RAM
+
+; flags
+.DEF OAMF_PRI        %10000000 ; Priority
+.DEF OAMF_YFLIP      %01000000 ; Y flip
+.DEF OAMF_XFLIP      %00100000 ; X flip
+.DEF OAMF_PAL0       %00000000 ; Palette number; 0,1 (DMG)
+.DEF OAMF_PAL1       %00010000 ; Palette number; 0,1 (DMG)
+.DEF OAMF_BANK0      %00000000 ; Bank number; 0,1 (GBC)
+.DEF OAMF_BANK1      %00001000 ; Bank number; 0,1 (GBC)
+
+So therefore our Entities will need at least:
+
+classPointer	.dw
+yPos		.db
+xPos		.db
+tileID		.db
+flags		.db
+
+We will obviously still need more like state, health, size, hitbox for damage, hitbox for environmental collision,
+hurtbox(es), animation timer, fraction position (sub pixels) for x and y, velocity, momentum, mass, acceleration,
+height, width
+
+They may not need all of the OAM parts. The need their objects in OAM to have them, but our Entities will likely be 
+made up of tiles that are flipped and in different parts of VRAM. Therefore, we will likely need that to be handled
+by the spriteUpdate subroutine within the Class. This subroutine will need to assign certain objects in OAM to the 
+sprite in the Entity. 
+
+So perhaps our Entity should have a sprite. Maybe we should have a Sprite Class? 
+Or in our Entity Class we will just need locations that carry the OAM data for the Entity in its current state. 
+Then when the Entity gets updated, it can just automatically be pointed to and written into the OAMBuffer. 
+
+^^ This should happen during our column update. Take the Entity List in our column and update each one. Send the 
+Entity ID and the handlerCommand (UPDATE, SPAWN, SET_DYING, SET_DEAD etc). This can be done using the classPointer??
+ld de, classPointer, ld hl, (classPointer). Then we'll have our entity pointed to, and we will be in it's handler with a simple JP, HL
+
+In this case, our Entities will need:
+classPointer 	.DW	;Points to the Entity Class
+yPos		.DB
+xPos		.DB
+state		.DB	;Attacking, spawning, dying, dead, running etc.
+
+;Maybe don't need?
+size		.DB 	;8x8 or 8x16?
+width		.DB
+height		.DB
+
+The Entity Class will handle setting up the OAMBuffer based on the Entity's size, width and height... although 
+this can probably also just be handled by the Entity Class, since it will just draw based on state, so knowing the actual size of the Entity may be irrelevant. We WILL need to know its hitbox size though.
+
+Using this system, I think we can account for irregularly shaped Entities. The ClassOAMBufferWriter subroutine
+should be able to draw the parts just based off of the yPos and xPos of the specific entity. This object is
+drawn at xPos + $10, this object at xPos + $20 etc. This is totally doable. For something like the Sunfish, the 
+state COULD act like a gun-position, or we could just give each gun its own .DB for its direction
+
+
+But we should really makea subroutine that will work for all rectangular Entities. Sunfish could actually be
+made up of 2 rectangular Entities. This COULD all be part of the UpdateEntity subroutine in the Entity Class. 
+Again, this would just be writing Sprites of XxY Objects to the OAMBuffer, so we could just do that twice for Sunffish. 
+
+Then the Class can hold the tile data instead of the Entity:
+
+Sunfish Class:
+
+CockpitVertical:
+;0,0
+.DB $XX, $YY, $ID, $FL
+;0,1
+.DB $XX, $YY, $ID, $FL
+;1,0
+.DB $XX, $YY, $ID, $FL
+;1,1
+.DB $XX, $YY, $ID, $FL
+
+BodyVertical:
+;0,0
+.DB $XX, $YY, $ID, $FL
+;0,1
+.DB $XX, $YY, $ID, $FL
+;0,2
+.DB $XX, $YY, $ID, $FL
+;1,0
+.DB $XX, $YY, $ID, $FL
+;1,1
+.DB $XX, $YY, $ID, $FL
+;1,2
+.DB $XX, $YY, $ID, $FL
+
+CockpitDestroyed:
+.
+.
+.
+
+Something along these lines, with
+
+ld hl, CockpitVertical
+call AddToOAMBuffer
+
+in the Sunfish@Update subroutine
+
+ACTUALLY, having the $XX and $YY is stupid. They need to be changing all the time, so those have to be loaded in
+at write-to-OAM time. Flags and Tile ID will be fine. This will also save memory so that's good. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
